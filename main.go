@@ -11,32 +11,60 @@ import (
 	"os"
 )
 
-// NewSecureReader instantiates a new SecureReader overwrite function write (line 20 writes to NewSecure
-func NewSecureReader(r io.Reader, priv, pub *[32]byte) io.Reader {
+type SecureReader struct {
+	r    io.Reader
+	priv *[32]byte
+	pub  *[32]byte
+}
 
+func (sr *SecureReader) Read(p []byte) (n int, err error) {
+	n, r := sr.r.Read(p)
 	nonce := new([24]byte)
-	_, err := io.ReadFull(rand.Reader, nonce[:])
+	_, err = io.ReadFull(rand.Reader, nonce[:])
 	if err != nil {
 		panic(err)
 	}
-	decrypt, _ := box.Open(nil, []byte("test"), nonce, pub, priv)
-	r.Read(decrypt)
-	return r
+	nonce = &[24]byte{'t'}
+	decrypt, _ := box.Open(nil, p[:n], nonce, sr.pub, sr.priv)
+	buf := make([]byte, 1024)
+	copy(p, buf)
+	copy(p[:n], decrypt)
+	return len(decrypt), r
+}
+
+// NewSecureReader instantiates a new SecureReader overwrite function write (line 20 writes to NewSecure
+func NewSecureReader(r io.Reader, priv, pub *[32]byte) io.Reader {
+	nsr := &SecureReader{r, priv, pub}
+	nsr.priv = priv
+	nsr.pub = pub
+	return nsr
+}
+
+type SecureWriter struct {
+	w    io.Writer
+	priv *[32]byte
+	pub  *[32]byte
+}
+
+func (sw *SecureWriter) Write(p []byte) (n int, err error) {
+	nonce2 := &[24]byte{'t'}
+	nonce := new([24]byte)
+	_, err = io.ReadFull(rand.Reader, nonce[:])
+	if err != nil {
+		panic(err)
+	}
+	enc := box.Seal(nil, p, nonce2, sw.pub, sw.priv)
+	n, err = sw.w.Write(enc)
+	return n, err
 }
 
 // https://github.com/mperham/gobox
 // NewSecureWriter instantiates a new SecureWriter
 func NewSecureWriter(w io.Writer, priv, pub *[32]byte) io.Writer {
-	r1, w1 := io.Pipe()
-	r1.Read(w.Write())
-	nonce := new([24]byte)
-	_, err := io.ReadFull(rand.Reader, nonce[:])
-	if err != nil {
-		panic(err)
-	}
-	enc := box.Seal(nil, []byte("test"), nonce, pub, priv)
-	w.Write(enc)
-	return w
+	nsw := &SecureWriter{w, priv, pub}
+	nsw.priv = priv
+	nsw.pub = pub
+	return nsw
 }
 
 // Dial generates a private/public key pair,
