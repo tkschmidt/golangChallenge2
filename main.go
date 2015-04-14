@@ -14,25 +14,21 @@ import (
 type SecureReader struct {
 	r    io.Reader
 	priv *[32]byte
-	pub  *[32]byte
+	pub  *[32]byte //new marker if multiple reads are necessary
 }
 
 func (sr *SecureReader) Read(p []byte) (n int, err error) {
 	n, r := sr.r.Read(p)
-	nonce := new([24]byte)
-	_, err = io.ReadFull(rand.Reader, nonce[:])
-	if err != nil {
-		panic(err)
-	}
-	nonce = &[24]byte{'t'}
-	decrypt, _ := box.Open(nil, p[:n], nonce, sr.pub, sr.priv)
+	nonce_back := new([24]byte)
+	copy(nonce_back[:], p[:24])
+	decrypt, _ := box.Open(nil, p[24:n], nonce_back, sr.pub, sr.priv)
 	buf := make([]byte, 1024)
 	copy(p, buf)
 	copy(p[:n], decrypt)
 	return len(decrypt), r
 }
 
-// NewSecureReader instantiates a new SecureReader overwrite function write (line 20 writes to NewSecure
+// NewSecureReader instantiates a new SecureReader
 func NewSecureReader(r io.Reader, priv, pub *[32]byte) io.Reader {
 	nsr := &SecureReader{r, priv, pub}
 	nsr.priv = priv
@@ -47,14 +43,14 @@ type SecureWriter struct {
 }
 
 func (sw *SecureWriter) Write(p []byte) (n int, err error) {
-	nonce2 := &[24]byte{'t'}
 	nonce := new([24]byte)
 	_, err = io.ReadFull(rand.Reader, nonce[:])
 	if err != nil {
 		panic(err)
 	}
-	enc := box.Seal(nil, p, nonce2, sw.pub, sw.priv)
-	n, err = sw.w.Write(enc)
+	enc := box.Seal(nil, p, nonce, sw.pub, sw.priv)
+	enc_with_nonce := append(nonce[:], enc...)
+	n, err = sw.w.Write(enc_with_nonce)
 	return n, err
 }
 
