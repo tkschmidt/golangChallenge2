@@ -24,7 +24,7 @@ func TestReadWriterPing(t *testing.T) {
 	// Decrypt message
 	buf := make([]byte, 1024)
 	n, err := secureR.Read(buf)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		t.Fatal(err)
 	}
 	buf = buf[:n]
@@ -104,10 +104,12 @@ func TestSecureEchoServer(t *testing.T) {
 
 	buf := make([]byte, 2048)
 	n, err := conn.Read(buf)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		t.Fatal(err)
 	}
 	if got := string(buf[:n]); got != expected {
 		t.Fatalf("Unexpected result:\nGot:\t\t%s\nExpected:\t%s\n", got, expected)
 	}
 }
+
+// http://loige.co/simple-echo-server-written-in-go-dockerized/
