@@ -104,7 +104,6 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 
 // Serve starts a secure echo server on the given listener.
 func Serve(l net.Listener) error {
-	defer l.Close()
 	for {
 		c, err := l.Accept()
 		if err != nil {
@@ -114,36 +113,28 @@ func Serve(l net.Listener) error {
 		}
 		//logs an incoming message
 		fmt.Printf("Received message %s -> %s \n", c.RemoteAddr(), c.LocalAddr())
-		// buf := make([]byte, 1024)
-		// _, _ = c.Read(buf)
-		// fmt.Printf("%v\n", string(buf))
-		// Handle connections in a new goroutine.
-		go handleRequest(c)
+		// Make a buffer to hold incoming data.
+		buf := make([]byte, 1024)
+		// Read the incoming connection into the buffer.
+		fmt.Println("i am here")
+		reqLen, err := c.Read(buf)
+		if err != nil {
+			fmt.Println("Error reading:", err.Error())
+		}
+		// Builds the message.
+		message := "Hi, I received your message! It was "
+		message += strconv.Itoa(reqLen)
+		message += " bytes long and that's what it said: \""
+		n := bytes.Index(buf, []byte{0})
+		message += string(buf[:n-1])
+		message += "\" ! Honestly I have no clue about what to do with your messages, so Bye Bye!\n"
+
+		// Write the message in the connection channel.
+		c.Write(buf)
+		// Close the connection when you're done with it.
+		//conn.Close()
 
 	}
-}
-
-func handleRequest(conn net.Conn) {
-	// Make a buffer to hold incoming data.
-	buf := make([]byte, 1024)
-	// Read the incoming connection into the buffer.
-	fmt.Println("i am here")
-	reqLen, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading:", err.Error())
-	}
-	// Builds the message.
-	message := "Hi, I received your message! It was "
-	message += strconv.Itoa(reqLen)
-	message += " bytes long and that's what it said: \""
-	n := bytes.Index(buf, []byte{0})
-	message += string(buf[:n-1])
-	message += "\" ! Honestly I have no clue about what to do with your messages, so Bye Bye!\n"
-
-	// Write the message in the connection channel.
-	conn.Write(buf)
-	// Close the connection when you're done with it.
-	//conn.Close()
 }
 
 func main() {
