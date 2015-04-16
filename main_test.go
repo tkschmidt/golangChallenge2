@@ -98,7 +98,7 @@ func TestSecureEchoServer(t *testing.T) {
 	defer conn.Close()
 
 	expected := "hello world 2\n"
-	fmt.Println("wir rufen den rwc auf")
+	// 	fmt.Println("wir rufen den rwc auf")
 	if _, err := fmt.Fprintf(conn, expected); err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestSecureEchoServer(t *testing.T) {
 	}
 	// 	fmt.Printf("das erwarte ich %v\n", []byte(expected))
 	// 	fmt.Printf("das bekomme ich als bytes %v\n", buf[:n])
-	// 	fmt.Printf("das bekomme ich %v\n", string(buf[:n]))
+	// 	// 	fmt.Printf("das bekomme ich %v\n", string(buf[:n]))
 	if got := string(buf[:n]); got != expected {
 		t.Fatalf("Unexpected result:\nGot:\t\t%s\nExpected:\t%s\n", got, expected)
 	}

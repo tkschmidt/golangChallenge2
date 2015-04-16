@@ -21,8 +21,8 @@ type SecureReader struct {
 
 func (sr *SecureReader) Read(p []byte) (n int, err error) {
 	n, r := sr.Reader.Read(p)
-	fmt.Printf("bekomme ich was leeres %v\n", p)
-	fmt.Printf("bekomme ich was leeres %v\n", string(p))
+	// 	fmt.Printf("bekomme ich was leeres %v\n", p)
+	// 	fmt.Printf("bekomme ich was leeres %v\n", string(p))
 	nonceBack := new([24]byte)
 	copy(nonceBack[:], p[:24])
 	decrypt, erfolg := box.Open(nil, p[24:n], nonceBack, sr.pub, sr.priv)
@@ -32,7 +32,7 @@ func (sr *SecureReader) Read(p []byte) (n int, err error) {
 	buf := make([]byte, 1024)
 	copy(p, buf)
 	copy(p[:n], decrypt)
-	fmt.Printf("entschlussekt wurd %v\n", p)
+	// 	fmt.Printf("entschlussekt wurd %v\n", p)
 	return len(decrypt), r
 }
 
@@ -57,14 +57,14 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("i want encrypted %v\n", string(p))
-	fmt.Printf("i want encrypted %v\n", p)
-	fmt.Printf("nonce is  %v\n", nonce)
+	// 	fmt.Printf("i want encrypted %v\n", string(p))
+	// 	fmt.Printf("i want encrypted %v\n", p)
+	// 	fmt.Printf("nonce is  %v\n", nonce)
 
 	enc := box.Seal(nil, p, nonce, sw.pub, sw.priv)
 	encWithNonce := append(nonce[:], enc...)
 
-	fmt.Printf("encrypted sieht es so aus %v\n", encWithNonce)
+	// 	fmt.Printf("encrypted sieht es so aus %v\n", encWithNonce)
 
 	n, err = sw.Writer.Write(encWithNonce)
 	return n, err
@@ -93,8 +93,8 @@ func (sc secureConnection) Close() error {
 // and return a reader/writer.
 func Dial(addr string) (io.ReadWriteCloser, error) {
 	pub, priv, err := box.GenerateKey(rand.Reader)
-	fmt.Printf("priv is %v\n", priv)
-	fmt.Printf("pub is %v\n", pub)
+	// 	fmt.Printf("priv is %v\n", priv)
+	// 	fmt.Printf("pub is %v\n", pub)
 	if err != nil {
 		panic(err)
 	}
@@ -155,8 +155,8 @@ func handleRequest(conn net.Conn) {
 	}
 	// Write the message in the connection channel.
 	conn.Write(buf[:reqLen])
-	fmt.Printf("byte version %v\n", buf[:reqLen])
-	fmt.Printf("string version %v\n", string(buf[:reqLen]))
+	// 	fmt.Printf("byte version %v\n", buf[:reqLen])
+	// 	fmt.Printf("string version %v\n", string(buf[:reqLen]))
 	// Close the connection when you're done with it.
 	conn.Close()
 
