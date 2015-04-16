@@ -107,6 +107,8 @@ func TestSecureEchoServer(t *testing.T) {
 	if err != nil && err != io.EOF {
 		t.Fatal(err)
 	}
+	fmt.Printf("%v\n", []byte(expected))
+	fmt.Printf("%v\n", buf[:n])
 	if got := string(buf[:n]); got != expected {
 		t.Fatalf("Unexpected result:\nGot:\t\t%s\nExpected:\t%s\n", got, expected)
 	}

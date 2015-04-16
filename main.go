@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/rand"
 	"flag"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strconv"
 )
 
 // SecureReader is bla
@@ -91,50 +89,40 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 	if err != nil {
 		panic(err)
 	}
-
-	// buf := make([]byte, 1024)
-	// n, err := conn.Read(buf)
-	// 	if err != nil && err != io.EOF {
-	// 		panic(err)
-	// 	}
-	// 	buf = buf[:n]
-	// 	fmt.Printf("%v\n", string(buf))
 	return conn, err
 }
 
 // Serve starts a secure echo server on the given listener.
 func Serve(l net.Listener) error {
-	for {
-		c, err := l.Accept()
-		if err != nil {
-			fmt.Printf("i have an error %v\n", err)
-			panic(err)
-			return err
-		}
-		//logs an incoming message
-		fmt.Printf("Received message %s -> %s \n", c.RemoteAddr(), c.LocalAddr())
-		// Make a buffer to hold incoming data.
-		buf := make([]byte, 1024)
-		// Read the incoming connection into the buffer.
-		fmt.Println("i am here")
-		reqLen, err := c.Read(buf)
-		if err != nil {
-			fmt.Println("Error reading:", err.Error())
-		}
-		// Builds the message.
-		message := "Hi, I received your message! It was "
-		message += strconv.Itoa(reqLen)
-		message += " bytes long and that's what it said: \""
-		n := bytes.Index(buf, []byte{0})
-		message += string(buf[:n-1])
-		message += "\" ! Honestly I have no clue about what to do with your messages, so Bye Bye!\n"
-
-		// Write the message in the connection channel.
-		c.Write(buf)
-		// Close the connection when you're done with it.
-		//conn.Close()
-
+	// Listen for an incoming connection.
+	conn, err := l.Accept()
+	if err != nil {
+		fmt.Println("Error accepting: ", err.Error())
+		return err
+		panic(err)
 	}
+
+	//logs an incoming message
+	fmt.Printf("Received message %s -> %s \n", conn.RemoteAddr(), conn.LocalAddr())
+
+	// Handle connections in a new goroutine.
+	go handleRequest(conn)
+	return nil
+}
+
+// Handles incoming requests.
+func handleRequest(conn net.Conn) {
+	// Make a buffer to hold incoming data.
+	buf := make([]byte, 1024)
+	// Read the incoming connection into the buffer.
+	reqLen, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("Error reading:", err.Error())
+	}
+	// Write the message in the connection channel.
+	conn.Write(buf[:reqLen])
+	// Close the connection when you're done with it.
+	//conn.Close()
 }
 
 func main() {
