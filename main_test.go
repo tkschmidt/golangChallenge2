@@ -97,7 +97,8 @@ func TestSecureEchoServer(t *testing.T) {
 	}
 	defer conn.Close()
 
-	expected := "hello world\n"
+	expected := "hello world 2\n"
+	fmt.Println("wir rufen den rwc auf")
 	if _, err := fmt.Fprintf(conn, expected); err != nil {
 		t.Fatal(err)
 	}
@@ -107,11 +108,39 @@ func TestSecureEchoServer(t *testing.T) {
 	if err != nil && err != io.EOF {
 		t.Fatal(err)
 	}
-	fmt.Printf("%v\n", []byte(expected))
-	fmt.Printf("%v\n", buf[:n])
+	fmt.Printf("das erwarte ich %v\n", []byte(expected))
+	fmt.Printf("das bekomme ich als bytes %v\n", buf[:n])
+	fmt.Printf("das bekomme ich %v\n", string(buf[:n]))
 	if got := string(buf[:n]); got != expected {
 		t.Fatalf("Unexpected result:\nGot:\t\t%s\nExpected:\t%s\n", got, expected)
 	}
 }
 
-// http://loige.co/simple-echo-server-written-in-go-dockerized/
+func TestSecureServe(t *testing.T) {
+	// Create a random listener
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	// Start the server
+	go Serve(l)
+
+	conn, err := net.Dial("tcp", l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	unexpected := "hello world 3\n"
+	if _, err := fmt.Fprintf(conn, unexpected); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 2048)
+	n, err := conn.Read(buf)
+	if err != nil && err != io.EOF {
+		t.Fatal(err)
+	}
+	if got := string(buf[:n]); got == unexpected {
+		t.Fatalf("Unexpected result:\nGot raw data instead of serialized key")
+	}
+}

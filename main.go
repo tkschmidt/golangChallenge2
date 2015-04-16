@@ -21,12 +21,18 @@ type SecureReader struct {
 
 func (sr *SecureReader) Read(p []byte) (n int, err error) {
 	n, r := sr.Reader.Read(p)
+	fmt.Printf("bekomme ich was leeres %v\n", p)
+	fmt.Printf("bekomme ich was leeres %v\n", string(p))
 	nonceBack := new([24]byte)
 	copy(nonceBack[:], p[:24])
-	decrypt, _ := box.Open(nil, p[24:n], nonceBack, sr.pub, sr.priv)
+	decrypt, erfolg := box.Open(nil, p[24:n], nonceBack, sr.pub, sr.priv)
+	if !erfolg {
+		fmt.Println("entschlusseln klappt nicht")
+	}
 	buf := make([]byte, 1024)
 	copy(p, buf)
 	copy(p[:n], decrypt)
+	fmt.Printf("entschlussekt wurd %v\n", p)
 	return len(decrypt), r
 }
 
@@ -51,8 +57,15 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("i want encrypted %v\n", string(p))
+	fmt.Printf("i want encrypted %v\n", p)
+	fmt.Printf("nonce is  %v\n", nonce)
+
 	enc := box.Seal(nil, p, nonce, sw.pub, sw.priv)
 	encWithNonce := append(nonce[:], enc...)
+
+	fmt.Printf("encrypted sieht es so aus %v\n", encWithNonce)
+
 	n, err = sw.Writer.Write(encWithNonce)
 	return n, err
 }
@@ -67,33 +80,46 @@ func NewSecureWriter(w io.Writer, priv, pub *[32]byte) io.Writer {
 }
 
 type secureConnection struct {
-	net.Conn
 	io.Writer
 	io.Reader
 }
 
-func (sc *secureConnection) Read(p []byte) (n int, err error) {
-	return (sc.Reader.Read(p))
-}
-
-func (sc *secureConnection) Write(p []byte) (n int, err error) {
-	return (sc.Writer.Write(p))
+func (sc secureConnection) Close() error {
+	return nil
 }
 
 // Dial generates a private/public key pair,
 // connects to the server, perform the handshake
 // and return a reader/writer.
 func Dial(addr string) (io.ReadWriteCloser, error) {
-	//pub, priv, err := box.GenerateKey(rand.Reader)
+	pub, priv, err := box.GenerateKey(rand.Reader)
+	fmt.Printf("priv is %v\n", priv)
+	fmt.Printf("pub is %v\n", pub)
+	if err != nil {
+		panic(err)
+	}
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		panic(err)
 	}
-	return conn, err
+
+	//	fmt.Fprint(conn, pub)
+	//	privServer := &[32]byte{}
+	//	_, err = conn.Read(privServer[:])
+	//	if err != nil && err != io.EOF {
+	//		panic(err)
+	//	}
+	var rwc secureConnection
+
+	secureR := NewSecureReader(conn, priv, pub)
+	secureW := NewSecureWriter(conn, priv, pub)
+	rwc = secureConnection{secureW, secureR}
+	return rwc, err
 }
 
 // Serve starts a secure echo server on the given listener.
 func Serve(l net.Listener) error {
+	// ckr := make(chan *KeyRequests)
 	// Listen for an incoming connection.
 	conn, err := l.Accept()
 	if err != nil {
@@ -112,6 +138,47 @@ func Serve(l net.Listener) error {
 
 // Handles incoming requests.
 func handleRequest(conn net.Conn) {
+	// func handleRequest(conn net.Conn, ckr chan *KeyRequests) {
+	// 	request := &KeyRequests{conn.RemoteAddr(), make(chan [32]byte)}
+	// 	ckr <- request
+	// 	if <-request.answ == [32]byte{} {
+	// 		go handleRequestNewKey(conn, ckr)
+	// 	} else {
+	// 		go handleRequestEncrypt(conn, ckr)
+	// 	}
+	// Make a buffer to hold incoming data.
+	buf := make([]byte, 1024)
+	// Read the incoming connection into the buffer.
+	reqLen, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("Error reading:", err.Error())
+	}
+	// Write the message in the connection channel.
+	conn.Write(buf[:reqLen])
+	fmt.Printf("byte version %v\n", buf[:reqLen])
+	fmt.Printf("string version %v\n", string(buf[:reqLen]))
+	// Close the connection when you're done with it.
+	conn.Close()
+
+}
+
+type KeyRequests struct {
+	ask  net.Addr
+	answ chan [32]byte
+}
+
+func ControlKeys(queue chan *KeyRequests) {
+	knownKeys := make(map[net.Addr][32]byte)
+	for r := range queue {
+		i, ok := knownKeys[r.ask]
+		if ok != true {
+			r.answ <- [32]byte{}
+		} else {
+			r.answ <- i
+		}
+	}
+}
+func handleRequestNewKey(conn net.Conn, ckr chan *KeyRequests) {
 	// Make a buffer to hold incoming data.
 	buf := make([]byte, 1024)
 	// Read the incoming connection into the buffer.
@@ -122,7 +189,21 @@ func handleRequest(conn net.Conn) {
 	// Write the message in the connection channel.
 	conn.Write(buf[:reqLen])
 	// Close the connection when you're done with it.
-	//conn.Close()
+	conn.Close()
+}
+
+func handleRequestEncrypt(conn net.Conn, ckr chan *KeyRequests) {
+	// Make a buffer to hold incoming data.
+	buf := make([]byte, 1024)
+	// Read the incoming connection into the buffer.
+	reqLen, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("Error reading:", err.Error())
+	}
+	// Write the message in the connection channel.
+	conn.Write(buf[:reqLen])
+	// Close the connection when you're done with it.
+	conn.Close()
 }
 
 func main() {
