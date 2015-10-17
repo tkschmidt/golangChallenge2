@@ -1,6 +1,7 @@
 package main
 
 import (
+	// 	"bytes"
 	"crypto/rand"
 	"flag"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"net"
 	"os"
+	// 	"strconv"
 )
 
 // SecureReader is bla
@@ -59,7 +61,7 @@ func (sw *SecureWriter) Write(p []byte) (n int, err error) {
 	}
 	// 	fmt.Printf("i want encrypted %v\n", string(p))
 	// 	fmt.Printf("i want encrypted %v\n", p)
-	// 	fmt.Printf("nonce is  %v\n", nonce)
+	fmt.Printf("nonce is  %v\n", nonce[0:3])
 
 	enc := box.Seal(nil, p, nonce, sw.pub, sw.priv)
 	encWithNonce := append(nonce[:], enc...)
@@ -85,6 +87,7 @@ type secureConnection struct {
 }
 
 func (sc secureConnection) Close() error {
+	// 	err := sc.Close()
 	return nil
 }
 
@@ -94,7 +97,7 @@ func (sc secureConnection) Close() error {
 func Dial(addr string) (io.ReadWriteCloser, error) {
 	pub, priv, err := box.GenerateKey(rand.Reader)
 	// 	fmt.Printf("priv is %v\n", priv)
-	// 	fmt.Printf("pub is %v\n", pub)
+	fmt.Printf("pub is %v\n", pub)
 	if err != nil {
 		panic(err)
 	}
@@ -102,15 +105,20 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 	if err != nil {
 		panic(err)
 	}
+	header := &[64]byte{'p', 'r', 'i', 'v', 'p', 'u', 'b'}
 
-	//	fmt.Fprint(conn, pub)
-	//	privServer := &[32]byte{}
-	//	_, err = conn.Read(privServer[:])
-	//	if err != nil && err != io.EOF {
-	//		panic(err)
-	//	}
+	buf := make([]byte, 96)
+	copy(buf[:64], header[:64])
+	copy(buf[64:], pub[0:32])
+	fmt.Printf("what is the end%v\n", pub[32:])
+	fmt.Printf("combination %v\n", buf)
+	conn2, err := net.Dial("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	conn2.Write(buf)
+	conn2.Close()
 	var rwc secureConnection
-
 	secureR := NewSecureReader(conn, priv, pub)
 	secureW := NewSecureWriter(conn, priv, pub)
 	rwc = secureConnection{secureW, secureR}
@@ -121,45 +129,38 @@ func Dial(addr string) (io.ReadWriteCloser, error) {
 func Serve(l net.Listener) error {
 	// ckr := make(chan *KeyRequests)
 	// Listen for an incoming connection.
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting: ", err.Error())
-		return err
-		panic(err)
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting: ", err.Error())
+			return err
+			panic(err)
+		}
+
+		//logs an incoming message
+		fmt.Printf("Received message %s -> %s \n", conn.RemoteAddr(), conn.LocalAddr())
+
+		// Handle connections in a new goroutine.
+		go handleRequest(conn)
 	}
-
-	//logs an incoming message
-	fmt.Printf("Received message %s -> %s \n", conn.RemoteAddr(), conn.LocalAddr())
-
-	// Handle connections in a new goroutine.
-	go handleRequest(conn)
 	return nil
 }
 
 // Handles incoming requests.
 func handleRequest(conn net.Conn) {
-	// func handleRequest(conn net.Conn, ckr chan *KeyRequests) {
-	// 	request := &KeyRequests{conn.RemoteAddr(), make(chan [32]byte)}
-	// 	ckr <- request
-	// 	if <-request.answ == [32]byte{} {
-	// 		go handleRequestNewKey(conn, ckr)
-	// 	} else {
-	// 		go handleRequestEncrypt(conn, ckr)
-	// 	}
-	// Make a buffer to hold incoming data.
 	buf := make([]byte, 1024)
 	// Read the incoming connection into the buffer.
 	reqLen, err := conn.Read(buf)
+	fmt.Print("I read %v\n", buf)
 	if err != nil {
-		fmt.Println("Error reading:", err.Error())
+		panic(err)
 	}
-	// Write the message in the connection channel.
-	conn.Write(buf[:reqLen])
-	// 	fmt.Printf("byte version %v\n", buf[:reqLen])
-	// 	fmt.Printf("string version %v\n", string(buf[:reqLen]))
-	// Close the connection when you're done with it.
-	conn.Close()
-
+	if reqLen == 96 {
+		fmt.Println("i found the key")
+	} else {
+		conn.Write(buf)
+		conn.Close()
+	}
 }
 
 type KeyRequests struct {
@@ -189,7 +190,7 @@ func handleRequestNewKey(conn net.Conn, ckr chan *KeyRequests) {
 	// Write the message in the connection channel.
 	conn.Write(buf[:reqLen])
 	// Close the connection when you're done with it.
-	conn.Close()
+	//conn.Close()
 }
 
 func handleRequestEncrypt(conn net.Conn, ckr chan *KeyRequests) {
